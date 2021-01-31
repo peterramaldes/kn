@@ -9,6 +9,10 @@ Association of Federated Knowledge Workers).
 
 ## Environment Variables
 
+Environment variables are used both for the `kn` utility itself and,
+when necessary, to pass information to an Action script called by
+the `kn` tool when passing an argument does not make sense.
+
 Name|Description|Default|Required
 |:-:|-|-|:-:
 KN|Full path to current local knowledge node|None|Required (per KEG)

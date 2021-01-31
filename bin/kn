@@ -1,4 +1,4 @@
-#!/usr/bin/perl -T
+#!/usr/bin/perl
 use v5.10; use strict; use warnings;
 
 if (!$ENV{'KN'}) {
@@ -10,32 +10,79 @@ use Cwd;
 use File::Basename;
 use File::Spec;
 
-my $abscmd = Cwd::abs_path($0);
-my $absdir = dirname($abscmd);
-my $absknd = File::Spec->join($absdir,'kn.d');
-my $knd = File::Spec->join($ENV{'KN'},'.kn.d');
+my ($abscmd, $absdir, $absknd, $knd, $action, $action_path, %actions);
+
+$abscmd = Cwd::abs_path($0);
+$absdir = dirname($abscmd);
+$absknd = File::Spec->join($absdir,'kn.d');
+$knd = File::Spec->join($ENV{'KN'},'.kn.d');
+$action = shift;
+
 -d $knd or $knd = '';
 
-if ($ENV{'COMP_LINE'}) {
+# --------------------------- builtin actions -------------------------
 
-  # handle bash tab completion context with actions in the same
-  # directory as the executable but within the kn.d directory and any
-  # local $KN/.kn.d actions that are custom to the current active root
-  # knowledge node.
+sub _foo {
+  say 'foo';
+}
 
-  my $partial = $ARGV[1];
-  my %actions;
+my %builtin = (
+  "_foo" => \&_foo
+);
 
-  foreach my $a (map {s,^.*/,, && $_} glob "$absknd/*") {
+# load up all the standard actions that ship with command
+
+foreach my $a (map {s,^.*/,, && $_} glob "$absknd/*") {
+  $actions{$a} = File::Spec->join($absknd,$a);
+}
+
+# override with any actions that are in the root node
+
+if ($knd) {
+  foreach my $a (map {s,^.*/,, && $_} glob "$knd/*") {
     $actions{$a} = File::Spec->join($knd,$a);
   }
+}
 
-  if ($knd) {
-    foreach my $a (map {s,^.*/,, && $_} glob "$knd/*") {
-      $actions{$a} = File::Spec->join($knd,$a);
-    }
-  }
+# add internal builtins to completion (override all others)
+# TODO
 
-  map {/^$partial/ and say $_} keys %actions;
+# ------------------------- bash tab completion -----------------------
+
+if ($ENV{'COMP_LINE'}) {
+  map {/^$ARGV[0]/ and say $_} keys %actions;
   exit 0;
 }
+
+# -------------------------- normal execution -------------------------
+
+# keep for checking action detection
+# map {say "$_ -> $actions{$_}"} keys %actions;
+
+# Just echo environment variables (all caps).
+# (perl to the rescue for proper unicode regx)
+if ($action =~ /^[\p{Lu}_]+$/) {
+  say $ENV{$action};
+  exit 0;
+}
+
+# Call local, approved internal subs if _.
+if ($action =~ /^_/) {
+  my $ref = $builtin{$action};
+  if ($ref) {
+    &$ref(@ARGV);
+    exit 0;
+  }
+  say 'Builtin action not found: '.$action;
+  exit -1
+}
+
+if (!$actions{$action}) {
+  say 'No action found: ' . $action;
+  exit -1;
+}
+
+$action_path = $actions{$action};
+exec $action_path, @ARGV;
+
+__END__
