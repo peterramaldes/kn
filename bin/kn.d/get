@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Outputs the raw JSON data from the provided yq/jq query. Queries are
+# passed as the first and only argument and are prefixed with node
+# identifier
+
+get() {
+  kn _error unsupported "get (for now)"
+}
+
+get "$@"

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-use v5.10; use strict; use warnings;
+use v5.14; use strict; use warnings;
 
 if (!$ENV{'KN'}) {
   say 'KN environment variable must be set to current node path.';
@@ -9,8 +9,12 @@ if (!$ENV{'KN'}) {
 use Cwd;
 use File::Basename;
 use File::Spec;
+use Data::Dumper;
+$Data::Dumper::Indent = 1;
+sub Dump { print Dumper(@_); }
 
-my ($abscmd, $absdir, $absknd, $knd, $action, $action_path, %actions);
+my ($abscmd, $absdir, $absknd, $knd, $action, $action_path, %actions,
+  $node, $query, $yml, %builtin);
 
 $abscmd = Cwd::abs_path($0);
 $absdir = dirname($abscmd);
@@ -22,30 +26,37 @@ $action = shift;
 
 # --------------------------- builtin actions -------------------------
 
-sub _foo {
-  say 'foo';
+sub pidup {
+  my $pid=shift;
+  if (!$pid) {
+    say 'Missing pid as first argument.';
+    return -1;
+  }
+  exec 'kill', '-0', $pid;
 }
 
-my %builtin = (
-  "_foo" => \&_foo
+%builtin = (
+  "pidup" => \&pidup
 );
 
-# load up all the standard actions that ship with command
+# ---------------------------- load actions ---------------------------
 
+# Add the standard actions scripts that ship with kn
 foreach my $a (map {s,^.*/,, && $_} glob "$absknd/*") {
   $actions{$a} = File::Spec->join($absknd,$a);
 }
 
-# override with any actions that are in the root node
-
+# Override with action scripts from the root node
 if ($knd) {
   foreach my $a (map {s,^.*/,, && $_} glob "$knd/*") {
     $actions{$a} = File::Spec->join($knd,$a);
   }
 }
 
-# add internal builtins to completion (override all others)
-# TODO
+# Override all with builtin actions
+foreach my $a (keys %builtin) {
+  $actions{$a} = 1
+}
 
 # ------------------------- bash tab completion -----------------------
 
@@ -56,33 +67,39 @@ if ($ENV{'COMP_LINE'}) {
 
 # -------------------------- normal execution -------------------------
 
-# keep for checking action detection
-# map {say "$_ -> $actions{$_}"} keys %actions;
-
-# Just echo environment variables (all caps).
-# (perl to the rescue for proper unicode regx)
+# If action is just allcap env, print
 if ($action =~ /^[\p{Lu}_]+$/) {
   say $ENV{$action};
   exit 0;
 }
 
-# Call local, approved internal subs if _.
-if ($action =~ /^_/) {
-  my $ref = $builtin{$action};
-  if ($ref) {
-    &$ref(@ARGV);
-    exit 0;
+# If local builtin, delegate
+my $ref = $builtin{$action};
+if ($ref) {
+  &$ref(@ARGV);
+  exit $?;
+}
+
+# If contains a YAML query, execute yq
+if (($node, $query) = $action =~ /^([^\p{Lu}]+)?(\p{Lu}.+)/) {
+  if (!$node) {
+    $yml = File::Spec->join($ENV{'KN'},'data.yml');
+  } else {
+    $node =~ tr,.,/,;
+    $yml = File::Spec->join($ENV{'KN'},$node,'data.yml');
   }
-  say 'Builtin action not found: '.$action;
-  exit -1
+  if (!-r $yml) {
+    say 'File not found: '. $yml;
+    exit -1;
+  }
+  exec 'yq', 'e', ".$query", $yml;
 }
 
-if (!$actions{$action}) {
-  say 'No action found: ' . $action;
-  exit -1;
+# If either a standard or local action script, execute  
+if ($actions{$action}) {
+  $action_path = $actions{$action};
+  exec $action_path, @ARGV;
 }
 
-$action_path = $actions{$action};
-exec $action_path, @ARGV;
-
-__END__
+# If anything passed at all, try to edit it
+if ($action) { exec $actions{'edit'}, $action; }

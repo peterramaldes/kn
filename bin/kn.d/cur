@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Outputs the full path to the current active knowledge node (usually
+# $KN environment variable)
+
+# (this is an action because it might eventually read from the user
+# configuration file as well)
+
+cur() {
+  echo "$KN"
+}
+
+cur "$@"
+

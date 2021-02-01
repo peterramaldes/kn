@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Output the current date as a path in the YEAR/MONTH/DAY format for use
+# when creating content within a directory file structure that models
+# chronological data. Passes any arguments directly to `date -d` in
+# order to adjust the date from the default (current day).
+
+datepath() {
+  date +%4Y/%m/%d "-d $@"
+}
+
+datepath "$@"
