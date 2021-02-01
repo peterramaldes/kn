@@ -1,5 +1,5 @@
-#!/usr/bin/perl -T
-use v5.10; use strict; use warnings;
+#!/usr/bin/perl
+use v5.14; use strict; use warnings;
 
 if (!$ENV{'KN'}) {
   say 'KN environment variable must be set to current node path.';
@@ -9,33 +9,97 @@ if (!$ENV{'KN'}) {
 use Cwd;
 use File::Basename;
 use File::Spec;
+use Data::Dumper;
+$Data::Dumper::Indent = 1;
+sub Dump { print Dumper(@_); }
 
-my $abscmd = Cwd::abs_path($0);
-my $absdir = dirname($abscmd);
-my $absknd = File::Spec->join($absdir,'kn.d');
-my $knd = File::Spec->join($ENV{'KN'},'.kn.d');
+my ($abscmd, $absdir, $absknd, $knd, $action, $action_path, %actions,
+  $node, $query, $yml, %builtin);
+
+$abscmd = Cwd::abs_path($0);
+$absdir = dirname($abscmd);
+$absknd = File::Spec->join($absdir,'kn.d');
+$knd = File::Spec->join($ENV{'KN'},'.kn.d');
+$action = shift;
+
 -d $knd or $knd = '';
 
-if ($ENV{'COMP_LINE'}) {
+# --------------------------- builtin actions -------------------------
 
-  # handle bash tab completion context with actions in the same
-  # directory as the executable but within the kn.d directory and any
-  # local $KN/.kn.d actions that are custom to the current active root
-  # knowledge node.
+sub pidup {
+  my $pid=shift;
+  if (!$pid) {
+    say 'Missing pid as first argument.';
+    return -1;
+  }
+  exec 'kill', '-0', $pid;
+}
 
-  my $partial = $ARGV[1];
-  my %actions;
+%builtin = (
+  "pidup" => \&pidup
+);
 
-  foreach my $a (map {s,^.*/,, && $_} glob "$absknd/*") {
+# ---------------------------- load actions ---------------------------
+
+# Add the standard actions scripts that ship with kn
+foreach my $a (map {s,^.*/,, && $_} glob "$absknd/*") {
+  $actions{$a} = File::Spec->join($absknd,$a);
+}
+
+# Override with action scripts from the root node
+if ($knd) {
+  foreach my $a (map {s,^.*/,, && $_} glob "$knd/*") {
     $actions{$a} = File::Spec->join($knd,$a);
   }
+}
 
-  if ($knd) {
-    foreach my $a (map {s,^.*/,, && $_} glob "$knd/*") {
-      $actions{$a} = File::Spec->join($knd,$a);
-    }
-  }
+# Override all with builtin actions
+foreach my $a (keys %builtin) {
+  $actions{$a} = 1
+}
 
-  map {/^$partial/ and say $_} keys %actions;
+# ------------------------- bash tab completion -----------------------
+
+if ($ENV{'COMP_LINE'}) {
+  map {/^$ARGV[0]/ and say $_} keys %actions;
   exit 0;
 }
+
+# -------------------------- normal execution -------------------------
+
+# If action is just allcap env, print
+if ($action =~ /^[\p{Lu}_]+$/) {
+  say $ENV{$action};
+  exit 0;
+}
+
+# If local builtin, delegate
+my $ref = $builtin{$action};
+if ($ref) {
+  &$ref(@ARGV);
+  exit $?;
+}
+
+# If contains a YAML query, execute yq
+if (($node, $query) = $action =~ /^([^\p{Lu}]+)?(\p{Lu}.+)/) {
+  if (!$node) {
+    $yml = File::Spec->join($ENV{'KN'},'data.yml');
+  } else {
+    $node =~ tr,.,/,;
+    $yml = File::Spec->join($ENV{'KN'},$node,'data.yml');
+  }
+  if (!-r $yml) {
+    say 'File not found: '. $yml;
+    exit -1;
+  }
+  exec 'yq', 'e', ".$query", $yml;
+}
+
+# If either a standard or local action script, execute  
+if ($actions{$action}) {
+  $action_path = $actions{$action};
+  exec $action_path, @ARGV;
+}
+
+# If anything passed at all, try to edit it
+if ($action) { exec $actions{'edit'}, $action; }

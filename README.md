@@ -1,47 +1,77 @@
-# Knowledge Node Utility (kn), a Framework for Managing Knowledge
+# Knowledge Node CLI (kn)
 
-The Knowledge Node Utility (`kn`) addresses the needs of most knowledge
+The Knowledge Node CLI Utility addresses the needs of most knowledge
 workers by providing an easy-to-use command (`kn`) combined with a
 modular framework that can be easily customized. It fulfills the design
 goals outlined in the Knowledge Exchange Grid (KEG)
-[specification](https://github.com/afkworks/keg) (a Association of
-Federated Knowledge Workers initiative).
-
-## Designed for Local User
-
-Unlike other installed applications that might require administrator
-access, the `kn` approach assumes this command will *always* be within
-the full control of the user who is currently logged in. This allows
-completely different `kn` tools to be used by each user on the system.
-Indeed, the user should be encouraged to customize the `kn` tool to
-their needs.
-
-## Never a Package Manager
-
-The emphasis on local user empowerment means it makes no sense to ever
-package `kn` in any way. Instead, the `kn` tool and its dependencies
-should just be copied or unzipped or symlinked from a users copy of the
-`kn` tool. 
-
-Indeed, it is encouraged to simply fork the `kn` project and add its
-`bin` directory to the local user's path. That is the extend of any
-package management required. 
-
-If a user wants to stay in sync with the master `kn` project repo,
-while providing additional plugins they can be added to the `kn`
-configuration file.
+[specification](https://github.com/afkworks/keg) (an project from
+Association of Federated Knowledge Workers).
 
 ## Environment Variables
 
-Some environment variables are specified by the KEG initiative, others
-are just convenient ways to modularize any `kn` installation.
+Environment variables are used both for the `kn` utility itself and,
+when necessary, to pass information to an Action script called by
+the `kn` tool when passing an argument does not make sense.
 
 Name|Description|Default|Required
 |:-:|-|-|:-:
 KN|Full path to current local knowledge node|None|Required (per KEG)
 KNPATH|Comma-separated list of full paths to local knowledge nodes|None|Optional
-KNCONF|Full path to kn configuration directory|`${XDG_CONFIG_HOME}/kn`|Optional
 
-## How can I share my knowledge nodes? 
+### `KN`
+
+`KN` is the only mandatory environment variable. It indicates the full
+(absolute) path to a root knowledge node. All other `kn` configuration
+specifics can be read from `kn.yml` file there.
+
+### `KNPATH` 
+
+The optional `KNPATH` contains all the full paths to multiple root
+knowledge nodes on the current system. `KN` can then be changed to point
+to one of these as the active local context for all knowledge work using
+the `kn` command. This is somewhat akin to "workspaces" in VS Code and
+other IDEs. 
+
+### Relation Between `KN` and `KNPATH`
+
+Changing `KN` to anything other than something listed in the
+`KNPATH` (if it exists) is considered a fatal error and the `kn` utility
+will stop working. This allows `KNPATH` to be used as a validation of
+things that change `KN` as a layer of protection. Even though `KNPATH`
+is optional when only one node is used on a system, it is therefore
+usually desirable to set them both even if it only contains a single
+root knowledge node path.
+
+## The `kn.d` Directory
+
+The special `kn.d` directory contains all of the public Actions used by
+the `kn` command. The standard location for this directory is in the
+same directory as the `kn` command itself, wherever that is. In
+addition, if there is a `kn.d` directory within the root directory of
+the currently active knowledge node it will also be included and have a
+higher priority than the standard one installed with the `kn` tool
+itself. This provide a modular way for knowledge workers to extend and
+customize any Action available to `kn` and ensures that anyone reviewing
+or using the node on KEG will also have access to those customizations.
+
+## Frequently Asked Questions
+
+These are questions. They are frequent.
+
+### Why Perl?
+
+In short, always use the best tool for the job, and Perl --- despite the
+rampant, uninformed shade thrown at it --- is without any doubt the best
+tool for this job. If you don't understand why Perl is the best possible
+pick for rapid prototyping that involves a lot of text manipulation and
+matching, learn why and then consider re-asking your question after you
+have a fucking clue.
+
+Mostly because `\p{Cc}`, that's Unicode regular expression support in
+case you haven't see it before. Only Perl (the undisputed ruler of
+regular expressions) supports it, and frankly anything that needs full
+Unicode support and parsing *requires* it. 
+
+### How can I share my knowledge nodes? 
 
 That would be what [`keg`](https://github.com/afkworks/keg) is for.

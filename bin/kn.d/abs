@@ -1,0 +1,5 @@
+#!/usr/bin/perl
+use v5.10; use strict; use warnings;
+use File::Spec;
+$ARGV[0] =~ tr,.,/,;
+say File::Spec->join($ENV{'KN'},$ARGV[0])
